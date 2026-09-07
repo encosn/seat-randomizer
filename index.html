@@ -1061,8 +1061,16 @@
 
     $("toggleEditorBtn").addEventListener("click", function(){
       var panel = $("editorPanel");
+      var wasOpen = !panel.hidden;
       panel.hidden = !panel.hidden;
       this.textContent = panel.hidden ? "좌석 배치 편집" : "좌석 배치 편집 닫기";
+      if (wasOpen && panel.hidden){
+        // Closing the editor: immediately reflect the (possibly resized)
+        // layout in the result chart so the change is visible right away,
+        // without waiting for the next 무작위 배정 click.
+        renderActiveChart();
+        $("resultsSection").hidden = false;
+      }
     });
     $("addGroupBtn").addEventListener("click", function(){
       layout.groups.push({rows:5, cols:2});
@@ -1089,7 +1097,8 @@
 
     $("saveViewBtn").addEventListener("click", function(){
       var label = activeView === "student" ? "학생용" : "교사용";
-      exportPng("chartCapture", "saveViewBtn", "좌석표_"+label+"_"+$("dateInput").value+"_"+$("periodInput").value+"교시.png");
+      var clsPart = currentClassName().replace(/\s+/g, "");
+      exportPng("chartCapture", "saveViewBtn", "좌석표_"+label+"_"+$("dateInput").value+"_"+$("periodInput").value+"교시_"+clsPart+".png");
     });
 
     initCapabilities();
