@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="t">
+  <title id="t">컴퓨터실 자리뽑기</title>
+
+  <!-- 주소창과 탭에 뜨는 아이콘. 교사용 도구(특정 단원 무관)라서
+       hub 의 단원 색이 아니라 앱 자체의 골드 색을 그대로 썼다.
+       2x2 모니터로 "컴퓨터실 좌석"을 나타낸다. 글꼴은 쓰지 않는다.
+       주의: XML 주석 안에는 붙임표 두 개를 쓸 수 없다. -->
+  <rect width="64" height="64" rx="14" fill="#C79400"/>
+  <g fill="none" stroke="#FFFDF3" stroke-width="4.2" stroke-linejoin="round" stroke-linecap="round">
+    <rect x="10" y="11" width="18" height="13" rx="2.5"/>
+    <rect x="36" y="11" width="18" height="13" rx="2.5"/>
+    <rect x="10" y="34" width="18" height="13" rx="2.5"/>
+    <rect x="36" y="34" width="18" height="13" rx="2.5"/>
+  </g>
+</svg>

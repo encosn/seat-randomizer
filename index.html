@@ -1,0 +1,1102 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>컴퓨터실 자리뽑기</title>
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<meta name="description" content="날짜·교시·학년/반·인원수를 입력해 컴퓨터실 좌석을 무작위로 배정하고, 학생이 보는 화면과 교사가 보는 화면 두 가지 좌석표를 PNG로 저장하는 교사용 도구.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=Gowun+Dodum&family=JetBrains+Mono:wght@400;600;700&display=swap">
+<style>
+  :root{
+    --paper:#FBF7E6;
+    --surface:#FFFFFF;
+    --surface-2:#FFF6D8;
+    --ink:#3A2E05;
+    --ink-soft:#7A6A2E;
+    --ink-faint:#B4A66B;
+    --accent:#F0BE1B;
+    --accent-strong:#C79400;
+    --accent-ink:#3A2E05;
+    --accent-soft:#FBEAA0;
+    --warn:#C15A18;
+    --warn-soft:#F7DEC9;
+    --danger:#C0392B;
+    --danger-soft:#F6DAD5;
+    --border:#E3D6A0;
+    --border-soft:#EFE6BE;
+    --shadow:rgba(58,46,5,0.10);
+    --grid-line:#EFE3AE;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --paper:#151206;
+      --surface:#221D0B;
+      --surface-2:#2A2410;
+      --ink:#F5EDCF;
+      --ink-soft:#C9BC8C;
+      --ink-faint:#8A7E52;
+      --accent:#E8BB2E;
+      --accent-strong:#D9A62E;
+      --accent-soft:rgba(232,187,46,0.18);
+      --warn:#E58A4C;
+      --warn-soft:rgba(229,138,76,0.16);
+      --danger:#E38A75;
+      --danger-soft:rgba(227,138,117,0.16);
+      --border:#3A3115;
+      --border-soft:#2E2810;
+      --shadow:rgba(0,0,0,0.35);
+      --grid-line:#332B10;
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#151206;
+    --surface:#221D0B;
+    --surface-2:#2A2410;
+    --ink:#F5EDCF;
+    --ink-soft:#C9BC8C;
+    --ink-faint:#8A7E52;
+    --accent:#E8BB2E;
+    --accent-strong:#D9A62E;
+    --accent-soft:rgba(232,187,46,0.18);
+    --warn:#E58A4C;
+    --warn-soft:rgba(229,138,76,0.16);
+    --danger:#E38A75;
+    --danger-soft:rgba(227,138,117,0.16);
+    --border:#3A3115;
+    --border-soft:#2E2810;
+    --shadow:rgba(0,0,0,0.35);
+    --grid-line:#332B10;
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Gowun Dodum','Malgun Gothic','Apple SD Gothic Neo',sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{
+    max-width:1180px;
+    margin:0 auto;
+    padding:28px 20px 64px;
+  }
+  h1,h2,h3{font-family:'Do Hyeon','Malgun Gothic',sans-serif; font-weight:400; text-wrap:balance;}
+  .topbar{
+    display:flex;
+    align-items:flex-end;
+    justify-content:space-between;
+    gap:16px;
+    flex-wrap:wrap;
+    margin-bottom:22px;
+    padding-bottom:18px;
+    border-bottom:2px dashed var(--border);
+  }
+  .brand h1{
+    margin:0;
+    font-size:clamp(26px,4vw,34px);
+    color:var(--accent-strong);
+    letter-spacing:0.5px;
+  }
+  .brand p{
+    margin:6px 0 0;
+    color:var(--ink-soft);
+    font-size:14px;
+  }
+  .brand p b{color: var(--ink);}
+  .save-status{
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;
+    color:var(--ink-faint);
+    display:flex;
+    align-items:center;
+    gap:6px;
+    min-height:18px;
+  }
+  .save-status .dot{
+    width:7px;height:7px;border-radius:50%;
+    background:var(--accent);
+    opacity:0;
+    transition:opacity .25s ease;
+  }
+  .save-status.show .dot{opacity:1;}
+
+  .card{
+    background:var(--surface);
+    border:1px solid var(--border-soft);
+    border-radius:14px;
+    box-shadow:0 2px 10px var(--shadow);
+    padding:20px 22px;
+  }
+
+  .session-card{
+    display:flex;
+    flex-wrap:wrap;
+    gap:16px 22px;
+    align-items:flex-end;
+    margin-bottom:18px;
+  }
+  .field{display:flex; flex-direction:column; gap:6px;}
+  .field label{
+    font-size:12px;
+    color:var(--ink-soft);
+    letter-spacing:0.4px;
+  }
+  .field input, .field select{
+    font:inherit;
+    font-family:'JetBrains Mono',monospace;
+    font-size:14px;
+    padding:9px 10px;
+    border-radius:8px;
+    border:1px solid var(--border);
+    background:var(--surface-2);
+    color:var(--ink);
+    min-width:0;
+  }
+  .field input:focus, .field select:focus, button:focus-visible{
+    outline:2px solid var(--accent);
+    outline-offset:1px;
+  }
+  #gradeSelect{width:96px;}
+  #classSelect{width:84px;}
+  #countInput{width:84px;}
+  #periodInput{width:78px;}
+  #dateInput{width:150px;}
+
+  .btn{
+    font:inherit;
+    font-size:14px;
+    padding:10px 16px;
+    border-radius:8px;
+    border:1px solid var(--border);
+    background:var(--surface-2);
+    color:var(--ink);
+    cursor:pointer;
+    white-space:nowrap;
+  }
+  .btn:hover{border-color:var(--accent);}
+  .btn-primary{
+    background:var(--accent);
+    border-color:var(--accent);
+    color:var(--accent-ink);
+    font-family:'Do Hyeon',sans-serif;
+    font-size:15px;
+    letter-spacing:0.5px;
+    padding:10px 22px;
+  }
+  .btn-primary:hover{background:var(--accent-strong); border-color:var(--accent-strong);}
+  .btn-small{padding:6px 10px; font-size:12px; border-radius:6px;}
+  .btn-danger{color:var(--danger); border-color:var(--danger-soft);}
+  .btn-danger:hover{border-color:var(--danger);}
+  .actions-row{display:flex; gap:10px; margin-left:auto; flex-wrap:wrap;}
+
+  .error-banner{
+    background:var(--danger-soft);
+    color:var(--danger);
+    border-radius:8px;
+    padding:10px 14px;
+    font-size:13px;
+    margin-bottom:16px;
+    display:none;
+  }
+  .error-banner.show{display:block;}
+
+  /* --- editor --- */
+  .editor-toggle-wrap{margin-bottom:18px;}
+  #editorPanel{margin-bottom:26px;}
+  #editorPanel[hidden]{display:none;}
+  .editor-head{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:14px;
+    gap:12px;
+    flex-wrap:wrap;
+  }
+  .editor-head h2{margin:0; font-size:19px; color:var(--accent-strong);}
+  .editor-head p{margin:2px 0 0; font-size:12.5px; color:var(--ink-soft);}
+  .group-controls{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    margin-bottom:16px;
+  }
+  .group-ctrl{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    background:var(--surface-2);
+    border:1px solid var(--border-soft);
+    border-radius:9px;
+    padding:8px 10px;
+    font-size:12.5px;
+  }
+  .group-ctrl .g-name{font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--accent-strong); width:38px;}
+  .group-ctrl input{
+    width:42px; padding:4px 5px; font-family:'JetBrains Mono',monospace;
+    border:1px solid var(--border); border-radius:5px; background:var(--surface); color:var(--ink); font-size:12.5px;
+  }
+  .group-ctrl .icon-btn{
+    background:none; border:none; cursor:pointer; color:var(--ink-faint); font-size:14px; padding:2px 4px; line-height:1;
+  }
+  .group-ctrl .icon-btn:hover{color:var(--danger);}
+  .group-ctrl .icon-btn.move:hover{color:var(--accent);}
+
+  .stage-scroll{overflow-x:auto; padding:4px 2px 10px;}
+  .stage{
+    background:
+      linear-gradient(var(--grid-line) 1px, transparent 1px) 0 0/100% 22px,
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px) 0 0/22px 100%,
+      var(--surface-2);
+    border:1px solid var(--border-soft);
+    border-radius:12px;
+    padding:20px 24px 26px;
+    min-width:max-content;
+    display:flex;
+    flex-direction:column;
+    gap:16px;
+  }
+  /* Applied to #chartCapture only while generating a PNG: shrinks the
+     captured box (and the stage inside it) down to the seat grid's own
+     width instead of the full (wider) on-screen card width. */
+  .export-tight{
+    width:max-content;
+    max-width:100%;
+  }
+  .export-tight .stage{
+    width:max-content;
+  }
+  .board-strip{
+    display:flex;
+    justify-content:center;
+  }
+  .board{
+    background:var(--accent-strong);
+    color:var(--accent-ink);
+    font-family:'Do Hyeon',sans-serif;
+    font-size:13px;
+    letter-spacing:6px;
+    padding:7px 34px;
+    border-radius:5px;
+    box-shadow:0 2px 0 var(--shadow);
+  }
+  .seat-groups{
+    display:flex;
+    gap:30px;
+    align-items:flex-start;
+    justify-content:center;
+  }
+  .seat-groups.align-bottom{
+    align-items:flex-end;
+  }
+  .seat-group{
+    display:grid;
+    gap:7px;
+  }
+  .seat{
+    width:66px;
+    height:58px;
+    border-radius:8px;
+    border:1.5px solid var(--border);
+    background:var(--surface);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:2px;
+    position:relative;
+    color:var(--ink);
+  }
+  .seat .mon{width:20px; height:14px; opacity:0.55;}
+  .seat .mon rect{fill:none; stroke:var(--ink-soft); stroke-width:1.4;}
+  .seat .num{
+    font-family:'JetBrains Mono',monospace;
+    font-weight:700;
+    font-size:17px;
+    font-variant-numeric:tabular-nums;
+    line-height:1;
+  }
+  .seat .coord{
+    font-family:'JetBrains Mono',monospace;
+    font-size:9px;
+    color:var(--ink-faint);
+  }
+  .seat.editable{cursor:pointer;}
+  .seat.editable:hover{border-color:var(--accent);}
+  .seat.fixed{
+    background:var(--warn-soft);
+    border-color:var(--warn);
+  }
+  .seat.fixed .num{color:var(--warn);}
+  .seat .pin{
+    position:absolute; top:-7px; right:-7px;
+    width:16px; height:16px; border-radius:50%;
+    background:var(--warn); color:#fff;
+    display:flex; align-items:center; justify-content:center;
+    font-size:9px; box-shadow:0 1px 2px var(--shadow);
+  }
+  .seat.disabled{
+    background:repeating-linear-gradient(45deg, var(--border-soft), var(--border-soft) 5px, var(--surface) 5px, var(--surface) 10px);
+    border-style:dashed;
+    color:var(--ink-faint);
+  }
+  .seat.disabled .num{display:none;}
+  .seat.vacant{
+    border-style:dashed;
+    color:var(--ink-faint);
+    background:var(--surface-2);
+  }
+  .seat .power{
+    position:absolute; top:-7px; left:-7px;
+    width:16px; height:16px; border-radius:50%;
+    background:var(--surface); border:1.5px solid var(--border);
+    display:flex; align-items:center; justify-content:center;
+    font-size:9px; cursor:pointer; color:var(--ink-soft);
+  }
+  .seat .power:hover{border-color:var(--danger); color:var(--danger);}
+
+  .legend{
+    display:flex; gap:16px; flex-wrap:wrap;
+    margin-top:14px; font-size:12px; color:var(--ink-soft);
+  }
+  .legend span{display:inline-flex; align-items:center; gap:6px;}
+  .legend i{width:12px; height:12px; border-radius:3px; display:inline-block; border:1.5px solid var(--border);}
+  .legend i.f{background:var(--warn-soft); border-color:var(--warn);}
+  .legend i.d{background:repeating-linear-gradient(45deg, var(--border-soft), var(--border-soft) 3px, var(--surface) 3px, var(--surface) 6px);}
+  .legend i.v{background:var(--surface-2); border-style:dashed;}
+
+  /* --- results --- */
+  #resultsSection[hidden]{display:none;}
+  .chart-card{margin-bottom:22px;}
+  .view-tabs{
+    display:flex;
+    gap:8px;
+    margin-bottom:16px;
+    border-bottom:1px solid var(--border-soft);
+    padding-bottom:14px;
+  }
+  .tab-btn{
+    font:inherit;
+    font-family:'Do Hyeon',sans-serif;
+    font-size:14.5px;
+    letter-spacing:0.3px;
+    padding:9px 18px;
+    border-radius:9px;
+    border:1.5px solid var(--border);
+    background:var(--surface-2);
+    color:var(--ink-soft);
+    cursor:pointer;
+  }
+  .tab-btn:hover{border-color:var(--accent);}
+  .tab-btn.active{
+    background:var(--accent);
+    border-color:var(--accent);
+    color:var(--accent-ink);
+  }
+  .chart-header{
+    display:flex; justify-content:space-between; align-items:flex-start; gap:10px;
+    margin-bottom:14px;
+  }
+  .chart-header .who{
+    font-family:'Do Hyeon',sans-serif;
+    font-size:19px;
+    color:var(--accent-strong);
+  }
+  .session-tag{
+    font-family:'JetBrains Mono',monospace;
+    font-size:11.5px;
+    background:var(--accent-soft);
+    color:var(--accent-strong);
+    padding:5px 9px;
+    border-radius:6px;
+    white-space:nowrap;
+  }
+
+  footer{
+    margin-top:30px;
+    font-size:11.5px;
+    color:var(--ink-faint);
+    text-align:center;
+  }
+
+  /* --- modal --- */
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(30,22,4,0.45);
+    display:flex; align-items:center; justify-content:center;
+    z-index:50; padding:20px;
+  }
+  .modal-overlay[hidden]{display:none;}
+  .modal{
+    background:var(--surface);
+    border-radius:14px;
+    padding:22px 24px;
+    width:100%; max-width:320px;
+    box-shadow:0 12px 40px rgba(0,0,0,0.3);
+  }
+  .modal h3{margin:0 0 4px; font-size:17px; color:var(--accent-strong);}
+  .modal .seat-label{font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--ink-soft); margin-bottom:14px;}
+  .modal .field{margin-bottom:12px;}
+  .modal .checkbox-row{display:flex; align-items:center; gap:8px; font-size:13px; margin-bottom:14px;}
+  .modal .checkbox-row input{width:auto;}
+  .modal-actions{display:flex; justify-content:flex-end; gap:8px; margin-top:6px; flex-wrap:wrap;}
+
+  .hint{font-size:12px; color:var(--ink-faint); margin-top:4px;}
+  .toast{
+    position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
+    background:var(--ink); color:var(--paper);
+    padding:10px 18px; border-radius:8px; font-size:13px;
+    box-shadow:0 6px 20px var(--shadow);
+    z-index:60; opacity:0; pointer-events:none; transition:opacity .25s ease, transform .25s ease;
+  }
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(-4px);}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div class="brand">
+      <h1>🖥️ 컴퓨터실 자리뽑기</h1>
+      <p>날짜·교시·반·인원을 입력하면 좌석을 무작위로 배정합니다. <b>고정석</b>은 그대로 유지돼요.</p>
+    </div>
+    <div class="save-status" id="saveStatus"><span class="dot"></span><span id="saveStatusText">배치 정보 불러오는 중…</span></div>
+  </div>
+
+  <div class="card session-card">
+    <div class="field">
+      <label for="dateInput">날짜</label>
+      <input type="date" id="dateInput">
+    </div>
+    <div class="field">
+      <label for="periodInput">교시</label>
+      <select id="periodInput">
+        <option value="1">1교시</option>
+        <option value="2">2교시</option>
+        <option value="3" selected>3교시</option>
+        <option value="4">4교시</option>
+        <option value="5">5교시</option>
+        <option value="6">6교시</option>
+        <option value="7">7교시</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="gradeSelect">학년</label>
+      <select id="gradeSelect">
+        <option value="1" selected>1학년</option>
+        <option value="2">2학년</option>
+        <option value="3">3학년</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="classSelect">반</label>
+      <select id="classSelect">
+        <option value="1">1반</option>
+        <option value="2" selected>2반</option>
+        <option value="3">3반</option>
+        <option value="4">4반</option>
+        <option value="5">5반</option>
+        <option value="6">6반</option>
+        <option value="7">7반</option>
+        <option value="8">8반</option>
+        <option value="9">9반</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="countInput">학생 인원수</label>
+      <input type="number" id="countInput" min="1" max="80" value="28">
+    </div>
+    <div class="actions-row">
+      <button class="btn" id="toggleEditorBtn" type="button">좌석 배치 편집</button>
+      <button class="btn btn-primary" id="randomizeBtn" type="button">🎲 무작위 배정</button>
+    </div>
+  </div>
+
+  <div class="error-banner" id="errorBanner"></div>
+
+  <section id="editorPanel" hidden>
+    <div class="card">
+      <div class="editor-head">
+        <div>
+          <h2>좌석 배치 편집</h2>
+          <p>구역·행·열 수는 컴퓨터실 실제 배치에 맞게 바꾸세요. 자리를 클릭하면 고정 배정 번호를 지정하거나 사용 중지할 수 있어요.</p>
+        </div>
+        <button class="btn btn-small" id="addGroupBtn" type="button">+ 구역 추가</button>
+      </div>
+      <div class="group-controls" id="groupControls"></div>
+      <div class="stage-scroll">
+        <div class="stage" id="editorStage"></div>
+      </div>
+      <div class="legend">
+        <span><i class="f"></i>고정석</span>
+        <span><i class="d"></i>사용 중지(고장 등)</span>
+        <span>클릭하여 편집 · 현재 반: <b id="editorClassLabel">-</b>의 고정석이 표시됩니다</span>
+      </div>
+    </div>
+  </section>
+
+  <section id="resultsSection" hidden>
+    <div class="card chart-card">
+      <div class="view-tabs">
+        <button class="tab-btn active" id="tabStudent" data-view="student" type="button">🧑‍🎓 학생이 보는 화면</button>
+        <button class="tab-btn" id="tabTeacher" data-view="teacher" type="button">🧑‍🏫 교사가 보는 화면</button>
+      </div>
+      <div id="chartCapture">
+        <div class="chart-header">
+          <div class="who" id="viewWho"></div>
+          <div class="session-tag" id="viewTag"></div>
+        </div>
+        <div class="stage-scroll">
+          <div class="stage" id="chartStage"></div>
+        </div>
+      </div>
+      <div style="margin-top:14px; text-align:right;">
+        <button class="btn btn-small" id="saveViewBtn" type="button">PNG로 저장</button>
+      </div>
+    </div>
+  </section>
+
+  <footer>학생 번호는 출석부 번호를 의미합니다 · 좌석 배치와 반별 고정석은 이 브라우저에 자동 저장됩니다</footer>
+</div>
+
+<div class="modal-overlay" id="modalOverlay" hidden>
+  <div class="modal">
+    <h3>자리 설정</h3>
+    <div class="seat-label" id="modalSeatLabel"></div>
+    <div class="checkbox-row">
+      <input type="checkbox" id="modalDisabled">
+      <label for="modalDisabled">이 자리 사용 중지 (컴퓨터 고장 등)</label>
+    </div>
+    <div class="field">
+      <label for="modalNumber">고정 배정 번호 (<span id="modalClassName"></span>, 비워두면 무작위)</label>
+      <input type="number" id="modalNumber" min="1" placeholder="예: 5">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-small btn-danger" id="modalRemoveBtn" type="button">고정 해제</button>
+      <button class="btn btn-small" id="modalCancelBtn" type="button">취소</button>
+      <button class="btn btn-small btn-primary" id="modalSaveBtn" type="button">저장</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script>
+(function(){
+  "use strict";
+
+  // ---------- state ----------
+  var layout = { groups: [ {rows:5,cols:2}, {rows:5,cols:2}, {rows:5,cols:2}, {rows:2,cols:2} ], disabled: [] };
+  var currentClassDoc = { fixedPins: {}, lastAssignment: null, studentCount: null };
+  var assignment = null;       // {key: number|null}
+  var fixedKeysUsed = {};      // key: true, for the seats that used a fixed pin in current assignment
+  var db = null, downloads = null;
+  var editingKey = null;
+
+  var $ = function(id){ return document.getElementById(id); };
+
+  function seatKey(g,r,c){ return g+"-"+r+"-"+c; }
+
+  function classSlug(name){
+    var cleaned = (name||"").trim().normalize("NFC").replace(/[^\p{L}\p{N}_\-.~:@+]/gu, "_");
+    return cleaned ? cleaned.slice(0,80) : "default";
+  }
+
+  function currentClassName(){
+    return $("gradeSelect").value+"학년 "+$("classSelect").value+"반";
+  }
+
+  function shuffle(arr){
+    for (var i=arr.length-1;i>0;i--){
+      var j = Math.floor(Math.random()*(i+1));
+      var t = arr[i]; arr[i]=arr[j]; arr[j]=t;
+    }
+    return arr;
+  }
+
+  function monitorSvg(){
+    return '<svg class="mon" viewBox="0 0 20 14" xmlns="http://www.w3.org/2000/svg">'+
+      '<rect x="1" y="1" width="18" height="10" rx="1.4"></rect>'+
+      '<rect x="8" y="11.5" width="4" height="1.6" rx="0.5" style="fill:currentColor;stroke:none;opacity:.55"></rect>'+
+      '</svg>';
+  }
+
+  function showToast(msg){
+    var t = $("toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    clearTimeout(showToast._h);
+    showToast._h = setTimeout(function(){ t.classList.remove("show"); }, 2200);
+  }
+
+  function showError(msg){
+    var el = $("errorBanner");
+    if (!msg){ el.classList.remove("show"); el.textContent=""; return; }
+    el.textContent = msg;
+    el.classList.add("show");
+    el.scrollIntoView({behavior:"smooth", block:"center"});
+  }
+
+  function markSaved(text){
+    var s = $("saveStatus");
+    $("saveStatusText").textContent = text;
+    s.classList.add("show");
+  }
+
+  // ---------- persistence ----------
+  function initCapabilities(){
+    if (!window.claude || !window.claude.use){ markSaved("이 브라우저에만 저장됩니다"); loadLocalFallback(); return; }
+    Promise.all([window.claude.use("db"), window.claude.use("downloads")]).then(function(res){
+      db = res[0]; downloads = res[1];
+      if (db){ loadLayoutFromDb(); loadClassFromDb(currentClassName()); }
+      else { markSaved("이 브라우저에만 저장됩니다"); loadLocalFallback(); }
+    });
+  }
+
+  function loadLocalFallback(){
+    try{
+      var raw = localStorage.getItem("seatlayout_v1");
+      if (raw) layout = JSON.parse(raw);
+    }catch(e){}
+    currentClassDoc = { fixedPins:{}, lastAssignment:null, studentCount:null };
+    try{
+      var craw = localStorage.getItem("seatclass_"+classSlug(currentClassName()));
+      if (craw) currentClassDoc = JSON.parse(craw);
+    }catch(e){}
+    if (!currentClassDoc.fixedPins) currentClassDoc.fixedPins = {};
+    if (currentClassDoc.studentCount) $("countInput").value = currentClassDoc.studentCount;
+    renderEditor();
+    randomize(true);
+  }
+
+  function saveLayout(){
+    if (db){
+      db.doc("layout/main").set({ groups: layout.groups, disabled: layout.disabled, updatedAt: new Date().toISOString() })
+        .then(function(){ markSaved("배치 저장됨"); })
+        .catch(function(){ markSaved("배치 저장 실패 (임시로만 유지됨)"); });
+    } else {
+      try{ localStorage.setItem("seatlayout_v1", JSON.stringify(layout)); }catch(e){}
+      markSaved("이 브라우저에만 저장됨");
+    }
+  }
+
+  function loadLayoutFromDb(){
+    db.doc("layout/main").get().then(function(snap){
+      if (snap.exists){
+        var d = snap.data();
+        if (d && Array.isArray(d.groups) && d.groups.length){
+          layout.groups = d.groups;
+          layout.disabled = Array.isArray(d.disabled) ? d.disabled : [];
+        }
+      }
+      markSaved("배치 정보 불러옴");
+      renderEditor();
+      randomize(true);
+    }).catch(function(){
+      markSaved("배치 정보를 불러오지 못했습니다 (기본값 사용)");
+      renderEditor();
+      randomize(true);
+    });
+  }
+
+  function loadClassFromDb(className){
+    if (!db) return;
+    var slug = classSlug(className);
+    db.doc("classes/"+slug).get().then(function(snap){
+      currentClassDoc = (snap.exists && snap.data()) ? snap.data() : { fixedPins:{}, lastAssignment:null, studentCount:null };
+      if (!currentClassDoc.fixedPins) currentClassDoc.fixedPins = {};
+      if (currentClassDoc.studentCount) $("countInput").value = currentClassDoc.studentCount;
+      $("editorClassLabel").textContent = className || "-";
+      renderEditor();
+    }).catch(function(){
+      currentClassDoc = { fixedPins:{}, lastAssignment:null, studentCount:null };
+      renderEditor();
+    });
+  }
+
+  function saveClassDoc(){
+    var slug = classSlug(currentClassName());
+    var countVal = parseInt($("countInput").value,10);
+    currentClassDoc.studentCount = countVal > 0 ? countVal : (currentClassDoc.studentCount || null);
+    if (db){
+      db.doc("classes/"+slug).set({
+        fixedPins: currentClassDoc.fixedPins,
+        lastAssignment: currentClassDoc.lastAssignment,
+        studentCount: currentClassDoc.studentCount,
+        updatedAt: new Date().toISOString()
+      }).then(function(){ markSaved("‘"+currentClassName()+"’ 정보 저장됨"); })
+        .catch(function(){ markSaved("저장 실패"); });
+    } else {
+      try{ localStorage.setItem("seatclass_"+slug, JSON.stringify(currentClassDoc)); }catch(e){}
+      markSaved("이 브라우저에만 저장됨");
+    }
+  }
+
+  // ---------- seat list / validation ----------
+  function allSeatCoords(){
+    var list = [];
+    layout.groups.forEach(function(g, gi){
+      for (var r=0;r<g.rows;r++){
+        for (var c=0;c<g.cols;c++){
+          list.push({g:gi, r:r, c:c, key:seatKey(gi,r,c)});
+        }
+      }
+    });
+    return list;
+  }
+
+  function isDisabled(key){ return layout.disabled.indexOf(key) !== -1; }
+
+  // ---------- editor rendering ----------
+  function renderGroupControls(){
+    var wrap = $("groupControls");
+    wrap.innerHTML = "";
+    layout.groups.forEach(function(g, gi){
+      var box = document.createElement("div");
+      box.className = "group-ctrl";
+      box.innerHTML =
+        '<span class="g-name">'+(gi+1)+'구역</span>'+
+        '<label>행<input type="number" min="1" max="12" value="'+g.rows+'" data-role="rows" data-gi="'+gi+'"></label>'+
+        '<label>열<input type="number" min="1" max="12" value="'+g.cols+'" data-role="cols" data-gi="'+gi+'"></label>'+
+        '<button class="icon-btn move" data-role="left" data-gi="'+gi+'" title="왼쪽으로">◀</button>'+
+        '<button class="icon-btn move" data-role="right" data-gi="'+gi+'" title="오른쪽으로">▶</button>'+
+        '<button class="icon-btn" data-role="del" data-gi="'+gi+'" title="구역 삭제">✕</button>';
+      wrap.appendChild(box);
+    });
+
+    wrap.querySelectorAll('input[data-role="rows"], input[data-role="cols"]').forEach(function(inp){
+      inp.addEventListener("change", function(){
+        var gi = +inp.dataset.gi, role = inp.dataset.role;
+        var v = Math.max(1, Math.min(12, parseInt(inp.value,10) || 1));
+        layout.groups[gi][role] = v;
+        saveLayout();
+        renderEditor();
+      });
+    });
+    wrap.querySelectorAll('[data-role="del"]').forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var gi = +btn.dataset.gi;
+        if (layout.groups.length <= 1){ showToast("구역이 최소 1개는 있어야 해요"); return; }
+        layout.groups.splice(gi,1);
+        saveLayout();
+        renderEditor();
+      });
+    });
+    wrap.querySelectorAll('[data-role="left"]').forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var gi = +btn.dataset.gi;
+        if (gi===0) return;
+        var t = layout.groups[gi-1]; layout.groups[gi-1]=layout.groups[gi]; layout.groups[gi]=t;
+        saveLayout(); renderEditor();
+      });
+    });
+    wrap.querySelectorAll('[data-role="right"]').forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var gi = +btn.dataset.gi;
+        if (gi===layout.groups.length-1) return;
+        var t = layout.groups[gi+1]; layout.groups[gi+1]=layout.groups[gi]; layout.groups[gi]=t;
+        saveLayout(); renderEditor();
+      });
+    });
+  }
+
+  function buildSeatEl(key, mode, displayNum, isFixed){
+    var el = document.createElement("div");
+    el.className = "seat";
+    el.dataset.key = key;
+    var disabled = isDisabled(key);
+    if (mode === "edit"){
+      el.classList.add("editable");
+      if (disabled) el.classList.add("disabled");
+      var pin = currentClassDoc.fixedPins[key];
+      if (pin && !disabled) el.classList.add("fixed");
+      el.innerHTML = monitorSvg() +
+        (disabled ? '<span class="coord">사용안함</span>' : (pin ? '<span class="num">'+pin+'</span><span class="pin">📌</span>' : '<span class="coord">빈자리</span>'));
+      el.addEventListener("click", function(){ openSeatModal(key); });
+    } else {
+      if (disabled){
+        el.classList.add("disabled");
+        el.innerHTML = monitorSvg() + '<span class="coord">사용안함</span>';
+      } else if (displayNum === null || displayNum === undefined){
+        el.classList.add("vacant");
+        el.innerHTML = monitorSvg() + '<span class="coord">'+(displayNum===null?'공석':'-')+'</span>';
+      } else {
+        if (isFixed) el.classList.add("fixed");
+        el.innerHTML = monitorSvg() + '<span class="num">'+displayNum+'</span>' + (isFixed ? '<span class="pin">📌</span>' : '');
+      }
+    }
+    return el;
+  }
+
+  // Rebuilds a full .stage element: blackboard strip and the seat groups.
+  // orientation "front" = board at top, seats drawn as authored (student's
+  //   own view: facing the board, "up" on screen = straight ahead).
+  // orientation "rear"  = board at bottom (180-degree turn from "front"):
+  //   the teacher stands at the board facing the opposite way, so their
+  //   own "straight ahead" is the back of the room, drawn at the top.
+  function renderStage(stageEl, mode, orientation){
+    var flip = orientation === "rear";
+    var boardBlock = '<div class="board-strip"><div class="board">칠 판</div></div>';
+    var groupsBlock = '<div class="seat-groups"></div>';
+    stageEl.innerHTML = flip
+      ? (groupsBlock + boardBlock)
+      : (boardBlock + groupsBlock);
+    var groupsWrap = stageEl.querySelector(".seat-groups");
+    groupsWrap.classList.toggle("align-bottom", flip);
+    var order = layout.groups.map(function(_,i){ return i; });
+    if (flip) order.reverse();
+    order.forEach(function(gi){
+      var g = layout.groups[gi];
+      var gEl = document.createElement("div");
+      gEl.className = "seat-group";
+      gEl.style.gridTemplateColumns = "repeat("+g.cols+", 1fr)";
+      var colOrder = [];
+      for (var c=0;c<g.cols;c++) colOrder.push(c);
+      if (flip) colOrder.reverse();
+      var rowOrder = [];
+      for (var r=0;r<g.rows;r++) rowOrder.push(r);
+      if (flip) rowOrder.reverse();
+      rowOrder.forEach(function(r){
+        colOrder.forEach(function(c){
+          var key = seatKey(gi,r,c);
+          var num = assignment ? assignment[key] : undefined;
+          var isFixed = !!fixedKeysUsed[key];
+          gEl.appendChild(buildSeatEl(key, mode, num, isFixed));
+        });
+      });
+      groupsWrap.appendChild(gEl);
+    });
+  }
+
+  function renderEditor(){
+    renderGroupControls();
+    renderStage($("editorStage"), "edit", "front");
+    $("editorClassLabel").textContent = currentClassName() || "-";
+  }
+
+  var activeView = "student"; // "student" (board up top) | "teacher" (board at bottom)
+
+  function renderActiveChart(){
+    renderStage($("chartStage"), "result", activeView === "teacher" ? "rear" : "front");
+    $("viewWho").textContent = activeView === "student"
+      ? "🧑‍🎓 학생이 보는 화면"
+      : "🧑‍🏫 교사가 보는 화면";
+    $("viewTag").textContent = sessionTag();
+  }
+
+  function switchView(view){
+    activeView = view;
+    $("tabStudent").classList.toggle("active", view === "student");
+    $("tabTeacher").classList.toggle("active", view === "teacher");
+    renderActiveChart();
+  }
+
+  function renderResults(){
+    renderActiveChart();
+    $("resultsSection").hidden = false;
+  }
+
+  function sessionTag(){
+    var d = $("dateInput").value || "";
+    var p = $("periodInput").value;
+    var cls = currentClassName() || "";
+    return (d ? d+" · " : "") + p + "교시 · " + cls;
+  }
+
+  // ---------- modal ----------
+  function openSeatModal(key){
+    editingKey = key;
+    var parts = key.split("-");
+    $("modalSeatLabel").textContent = (+parts[0]+1)+"구역 "+(+parts[1]+1)+"행 "+(+parts[2]+1)+"열";
+    $("modalClassName").textContent = currentClassName() || "이 반";
+    $("modalDisabled").checked = isDisabled(key);
+    $("modalNumber").value = currentClassDoc.fixedPins[key] || "";
+    $("modalOverlay").hidden = false;
+  }
+  function closeModal(){ $("modalOverlay").hidden = true; editingKey = null; }
+
+  function saveModal(){
+    if (!editingKey) return;
+    var disabled = $("modalDisabled").checked;
+    var idx = layout.disabled.indexOf(editingKey);
+    if (disabled && idx===-1) layout.disabled.push(editingKey);
+    if (!disabled && idx!==-1) layout.disabled.splice(idx,1);
+
+    var numRaw = $("modalNumber").value.trim();
+    if (numRaw){
+      var num = parseInt(numRaw,10);
+      if (num >= 1){ currentClassDoc.fixedPins[editingKey] = num; }
+    } else {
+      delete currentClassDoc.fixedPins[editingKey];
+    }
+    saveLayout();
+    saveClassDoc();
+    renderEditor();
+    closeModal();
+  }
+
+  function removeModal(){
+    if (!editingKey) return;
+    delete currentClassDoc.fixedPins[editingKey];
+    var idx = layout.disabled.indexOf(editingKey);
+    if (idx!==-1) layout.disabled.splice(idx,1);
+    saveLayout();
+    saveClassDoc();
+    renderEditor();
+    closeModal();
+  }
+
+  // ---------- randomize ----------
+  function randomize(silent){
+    try{
+      randomizeInner(silent);
+    }catch(e){
+      console.error(e);
+      showError("무작위 배정 중 오류가 발생했습니다: "+e.message);
+    }
+  }
+
+  function randomizeInner(silent){
+    showError(null);
+    var count = parseInt($("countInput").value,10);
+    if (!count || count < 1){ showError("학생 인원수를 입력해 주세요."); return; }
+
+    var seats = allSeatCoords().filter(function(s){ return !isDisabled(s.key); });
+    if (count > seats.length){
+      showError("좌석이 부족합니다. (사용 가능 좌석 "+seats.length+"석 / 학생 "+count+"명) 좌석 배치 편집에서 구역을 늘려주세요.");
+      return;
+    }
+
+    var fixedPins = currentClassDoc.fixedPins || {};
+    var used = {}, valid = {}, dupWarn = false;
+    Object.keys(fixedPins).forEach(function(key){
+      var num = fixedPins[key];
+      if (isDisabled(key)) return;
+      if (!seats.find(function(s){ return s.key===key; })) return;
+      if (num < 1 || num > count) return;
+      if (used[num]){ dupWarn = true; return; }
+      used[num] = true;
+      valid[key] = num;
+    });
+
+    var remainingSeats = shuffle(seats.filter(function(s){ return !(s.key in valid); }));
+    var remainingNumbers = [];
+    for (var n=1;n<=count;n++){ if (!used[n]) remainingNumbers.push(n); }
+    shuffle(remainingNumbers);
+
+    var result = Object.assign({}, valid);
+    fixedKeysUsed = {};
+    Object.keys(valid).forEach(function(k){ fixedKeysUsed[k]=true; });
+
+    remainingSeats.forEach(function(s, i){
+      result[s.key] = (i < remainingNumbers.length) ? remainingNumbers[i] : null;
+    });
+
+    assignment = result;
+    currentClassDoc.lastAssignment = { date:$("dateInput").value, period:$("periodInput").value, className:currentClassName(), count:count, assignment:result, fixedKeysUsed:fixedKeysUsed };
+    if (!silent) saveClassDoc();
+    renderResults();
+    if (dupWarn) showToast("일부 고정 번호가 중복되어 무시되었습니다");
+  }
+
+  // ---------- export ----------
+  function exportPng(captureId, btnId, filename){
+    var target = document.getElementById(captureId);
+    var btn = document.getElementById(btnId);
+    if (!target){ showToast("차트를 찾을 수 없습니다"); return; }
+    if (!window.html2canvas){ showToast("이미지 변환 라이브러리를 불러오지 못했습니다"); return; }
+    document.fonts.ready.then(function(){
+      var bg = getComputedStyle(document.querySelector(".card")).backgroundColor || "#ffffff";
+      if (btn) btn.style.visibility = "hidden";
+      // Shrink the captured box down to the seat grid's own width so the
+      // PNG isn't padded out to the (wider) on-screen card width.
+      target.classList.add("export-tight");
+      var restore = function(){
+        target.classList.remove("export-tight");
+        if (btn) btn.style.visibility = "";
+      };
+      html2canvas(target, { scale:2, backgroundColor: bg }).then(function(canvas){
+        restore();
+        canvas.toBlob(function(blob){
+          if (!blob){ showToast("이미지 생성에 실패했습니다"); return; }
+          if (downloads){
+            downloads.save({ filename: filename, data: blob }).then(function(){
+              showToast("저장되었습니다: "+filename);
+            }).catch(function(err){
+              if (err && err.code === "declined") return;
+              downloadBlobLocally(blob, filename);
+            });
+          } else {
+            downloadBlobLocally(blob, filename);
+          }
+        }, "image/png");
+      }).catch(function(){
+        restore();
+        showToast("이미지 생성에 실패했습니다");
+      });
+    });
+  }
+
+  // Plain browser download.
+  function downloadBlobLocally(blob, filename){
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+    showToast("저장되었습니다: "+filename);
+  }
+
+  // ---------- wiring ----------
+  function init(){
+    var today = new Date();
+    var pad2 = function(n){ return n < 10 ? "0"+n : ""+n; };
+    $("dateInput").value = today.getFullYear()+"-"+pad2(today.getMonth()+1)+"-"+pad2(today.getDate());
+
+    $("toggleEditorBtn").addEventListener("click", function(){
+      var panel = $("editorPanel");
+      panel.hidden = !panel.hidden;
+      this.textContent = panel.hidden ? "좌석 배치 편집" : "좌석 배치 편집 닫기";
+    });
+    $("addGroupBtn").addEventListener("click", function(){
+      layout.groups.push({rows:5, cols:2});
+      saveLayout();
+      renderEditor();
+    });
+    $("randomizeBtn").addEventListener("click", function(){ randomize(false); });
+    var onClassChange = function(){
+      if (db) loadClassFromDb(currentClassName()); else loadLocalFallback();
+    };
+    $("gradeSelect").addEventListener("change", onClassChange);
+    $("classSelect").addEventListener("change", onClassChange);
+    $("countInput").addEventListener("change", function(){
+      saveClassDoc();
+    });
+
+    $("modalCancelBtn").addEventListener("click", closeModal);
+    $("modalSaveBtn").addEventListener("click", saveModal);
+    $("modalRemoveBtn").addEventListener("click", removeModal);
+    $("modalOverlay").addEventListener("click", function(e){ if (e.target === this) closeModal(); });
+
+    $("tabStudent").addEventListener("click", function(){ switchView("student"); });
+    $("tabTeacher").addEventListener("click", function(){ switchView("teacher"); });
+
+    $("saveViewBtn").addEventListener("click", function(){
+      var label = activeView === "student" ? "학생용" : "교사용";
+      exportPng("chartCapture", "saveViewBtn", "좌석표_"+label+"_"+$("dateInput").value+"_"+$("periodInput").value+"교시.png");
+    });
+
+    initCapabilities();
+  }
+
+  document.addEventListener("DOMContentLoaded", init);
+})();
+</script>
+</body>
+</html>
