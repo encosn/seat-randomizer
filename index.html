@@ -246,6 +246,28 @@
   .group-ctrl .icon-btn:hover{color:var(--danger);}
   .group-ctrl .icon-btn.move:hover{color:var(--accent);}
 
+  /* --- bulk class-size setup --- */
+  .bulk-grade{margin-bottom:16px;}
+  .bulk-grade:last-child{margin-bottom:0;}
+  .bulk-grade-title{
+    font-family:'Do Hyeon',sans-serif;
+    color:var(--accent-strong);
+    font-size:15px;
+    margin-bottom:8px;
+  }
+  .bulk-row{display:flex; flex-wrap:wrap; gap:8px;}
+  .bulk-cell{
+    display:flex; flex-direction:column; align-items:center; gap:4px;
+    width:56px;
+  }
+  .bulk-cell label{font-size:11px; color:var(--ink-soft);}
+  .bulk-cell input{
+    width:100%; padding:6px 4px; text-align:center;
+    font-family:'JetBrains Mono',monospace; font-size:13px;
+    border:1px solid var(--border); border-radius:6px;
+    background:var(--surface-2); color:var(--ink);
+  }
+
   .stage-scroll{overflow-x:auto; padding:4px 2px 10px;}
   .stage{
     background:
@@ -509,12 +531,28 @@
       <input type="number" id="countInput" min="1" max="80" value="28">
     </div>
     <div class="actions-row">
+      <button class="btn" id="toggleBulkBtn" type="button">반별 인원수 설정</button>
       <button class="btn" id="toggleEditorBtn" type="button">좌석 배치 편집</button>
       <button class="btn btn-primary" id="randomizeBtn" type="button">🎲 무작위 배정</button>
     </div>
   </div>
 
   <div class="error-banner" id="errorBanner"></div>
+
+  <section id="bulkPanel" hidden>
+    <div class="card">
+      <div class="editor-head">
+        <div>
+          <h2>반별 학생수 미리 설정</h2>
+          <p>학년별로 각 반의 인원수를 미리 입력해 두세요. 실제로 있는 반만 입력하면 됩니다. 나중에 위에서 학년/반을 선택하면 학생 인원수 칸에 자동으로 채워집니다. 비워둔 칸은 건드리지 않습니다.</p>
+        </div>
+      </div>
+      <div id="bulkGrid"></div>
+      <div style="margin-top:14px; text-align:right;">
+        <button class="btn btn-primary btn-small" id="bulkSaveBtn" type="button">저장</button>
+      </div>
+    </div>
+  </section>
 
   <section id="editorPanel" hidden>
     <div class="card">
@@ -733,6 +771,111 @@
       try{ localStorage.setItem("seatclass_"+slug, JSON.stringify(currentClassDoc)); }catch(e){}
       markSaved("이 브라우저에만 저장됨");
     }
+  }
+
+  // Generic per-class-name read/write, independent of the currently
+  // selected 학년/반 — used by the bulk class-size setup panel so it can
+  // touch other classes' saved data without disturbing the active one.
+  function fetchClassDoc(className){
+    var slug = classSlug(className);
+    var empty = { fixedPins:{}, lastAssignment:null, studentCount:null };
+    return new Promise(function(resolve){
+      if (db){
+        db.doc("classes/"+slug).get().then(function(snap){
+          var d = (snap.exists && snap.data()) ? snap.data() : empty;
+          if (!d.fixedPins) d.fixedPins = {};
+          resolve(d);
+        }).catch(function(){ resolve(empty); });
+      } else {
+        var d = empty;
+        try{
+          var raw = localStorage.getItem("seatclass_"+slug);
+          if (raw) d = JSON.parse(raw);
+        }catch(e){}
+        if (!d.fixedPins) d.fixedPins = {};
+        resolve(d);
+      }
+    });
+  }
+
+  function persistClassDoc(className, doc){
+    var slug = classSlug(className);
+    return new Promise(function(resolve){
+      if (db){
+        db.doc("classes/"+slug).set({
+          fixedPins: doc.fixedPins || {},
+          lastAssignment: doc.lastAssignment || null,
+          studentCount: doc.studentCount || null,
+          updatedAt: new Date().toISOString()
+        }).then(function(){ resolve(true); }).catch(function(){ resolve(false); });
+      } else {
+        try{ localStorage.setItem("seatclass_"+slug, JSON.stringify(doc)); resolve(true); }
+        catch(e){ resolve(false); }
+      }
+    });
+  }
+
+  // ---------- bulk class-size setup ----------
+  var BULK_GRADES = [1,2,3];
+  var BULK_CLASSES = [1,2,3,4,5,6,7,8,9];
+
+  function renderBulkGrid(){
+    var wrap = $("bulkGrid");
+    wrap.innerHTML = "";
+    BULK_GRADES.forEach(function(g){
+      var gradeDiv = document.createElement("div");
+      gradeDiv.className = "bulk-grade";
+      var title = document.createElement("div");
+      title.className = "bulk-grade-title";
+      title.textContent = g+"학년";
+      gradeDiv.appendChild(title);
+      var row = document.createElement("div");
+      row.className = "bulk-row";
+      BULK_CLASSES.forEach(function(c){
+        var cell = document.createElement("div");
+        cell.className = "bulk-cell";
+        cell.innerHTML = '<label>'+c+'반</label><input type="number" min="1" max="80" id="bulk-'+g+'-'+c+'">';
+        row.appendChild(cell);
+      });
+      gradeDiv.appendChild(row);
+      wrap.appendChild(gradeDiv);
+    });
+  }
+
+  function populateBulkGrid(){
+    BULK_GRADES.forEach(function(g){
+      BULK_CLASSES.forEach(function(c){
+        var name = g+"학년 "+c+"반";
+        fetchClassDoc(name).then(function(doc){
+          var input = $("bulk-"+g+"-"+c);
+          if (input) input.value = doc.studentCount || "";
+        });
+      });
+    });
+  }
+
+  function saveBulkGrid(){
+    var tasks = [];
+    BULK_GRADES.forEach(function(g){
+      BULK_CLASSES.forEach(function(c){
+        var input = $("bulk-"+g+"-"+c);
+        if (!input) return;
+        var val = parseInt(input.value,10);
+        if (!val || val < 1) return; // blank/invalid = leave that class untouched
+        var name = g+"학년 "+c+"반";
+        tasks.push(fetchClassDoc(name).then(function(doc){
+          doc.studentCount = val;
+          return persistClassDoc(name, doc);
+        }));
+      });
+    });
+    if (!tasks.length){ showToast("입력된 인원수가 없습니다"); return; }
+    Promise.all(tasks).then(function(){
+      showToast("반별 인원수를 저장했습니다");
+      fetchClassDoc(currentClassName()).then(function(doc){
+        if (doc.studentCount) $("countInput").value = doc.studentCount;
+      });
+    });
   }
 
   // ---------- seat list / validation ----------
@@ -1058,6 +1201,15 @@
     var today = new Date();
     var pad2 = function(n){ return n < 10 ? "0"+n : ""+n; };
     $("dateInput").value = today.getFullYear()+"-"+pad2(today.getMonth()+1)+"-"+pad2(today.getDate());
+
+    renderBulkGrid();
+    $("toggleBulkBtn").addEventListener("click", function(){
+      var panel = $("bulkPanel");
+      panel.hidden = !panel.hidden;
+      this.textContent = panel.hidden ? "반별 인원수 설정" : "반별 인원수 설정 닫기";
+      if (!panel.hidden) populateBulkGrid();
+    });
+    $("bulkSaveBtn").addEventListener("click", saveBulkGrid);
 
     $("toggleEditorBtn").addEventListener("click", function(){
       var panel = $("editorPanel");
