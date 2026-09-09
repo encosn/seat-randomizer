@@ -179,6 +179,7 @@
     white-space:nowrap;
   }
   .btn:hover{border-color:var(--accent);}
+  .btn:disabled{opacity:0.55; cursor:default; pointer-events:none;}
   .btn-primary{
     background:var(--accent);
     border-color:var(--accent);
@@ -475,6 +476,32 @@
     z-index:60; opacity:0; pointer-events:none; transition:opacity .25s ease, transform .25s ease;
   }
   .toast.show{opacity:1; transform:translateX(-50%) translateY(-4px);}
+
+  /* --- randomize countdown + confetti --- */
+  .countdown-overlay{
+    position:fixed; inset:0; background:rgba(30,22,4,0.55);
+    display:flex; align-items:center; justify-content:center;
+    z-index:80;
+  }
+  .countdown-overlay[hidden]{display:none;}
+  .countdown-number{
+    font-family:'Do Hyeon',sans-serif;
+    font-size:min(200px, 40vw);
+    line-height:1;
+    color:var(--accent);
+    text-shadow:0 6px 30px rgba(0,0,0,0.45);
+  }
+  .countdown-number.pulse{
+    animation: countdownPulse 0.78s cubic-bezier(.2,.8,.3,1);
+  }
+  @keyframes countdownPulse{
+    0%{ transform:scale(0.35); opacity:0; }
+    35%{ transform:scale(1.18); opacity:1; }
+    100%{ transform:scale(1); opacity:1; }
+  }
+  #confettiCanvas{
+    position:fixed; inset:0; z-index:90; pointer-events:none;
+  }
 </style>
 </head>
 <body>
@@ -620,6 +647,11 @@
 </div>
 
 <div class="toast" id="toast"></div>
+
+<div class="countdown-overlay" id="countdownOverlay" hidden>
+  <div class="countdown-number" id="countdownNumber">5</div>
+</div>
+<canvas id="confettiCanvas" hidden></canvas>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script>
@@ -1196,6 +1228,97 @@
     showToast("저장되었습니다: "+filename);
   }
 
+  // ---------- randomize countdown + confetti ----------
+  function startCountdownThenRandomize(){
+    var btn = $("randomizeBtn");
+    if (btn.disabled) return; // a countdown is already running
+    btn.disabled = true;
+    var overlay = $("countdownOverlay");
+    var numEl = $("countdownNumber");
+    var n = 5;
+    overlay.hidden = false;
+    showCountdownNumber(numEl, n);
+    var timer = setInterval(function(){
+      n--;
+      if (n > 0){
+        showCountdownNumber(numEl, n);
+        return;
+      }
+      clearInterval(timer);
+      overlay.hidden = true;
+      btn.disabled = false;
+      randomize(false);
+      launchConfetti();
+    }, 700);
+  }
+
+  function showCountdownNumber(el, n){
+    el.textContent = n;
+    el.classList.remove("pulse");
+    void el.offsetWidth; // restart the CSS animation
+    el.classList.add("pulse");
+  }
+
+  function launchConfetti(){
+    var canvas = $("confettiCanvas");
+    var vw = window.innerWidth, vh = window.innerHeight;
+    var dpr = window.devicePixelRatio || 1;
+    canvas.width = vw * dpr;
+    canvas.height = vh * dpr;
+    canvas.style.width = vw+"px";
+    canvas.style.height = vh+"px";
+    canvas.hidden = false;
+    var ctx = canvas.getContext("2d");
+    ctx.scale(dpr, dpr);
+
+    var colors = ["#F0BE1B","#C79400","#C15A18","#59B39F","#2F6F62","#C0392B"];
+    var pieces = [];
+    for (var i=0;i<150;i++){
+      pieces.push({
+        x: Math.random()*vw,
+        y: -20 - Math.random()*vh*0.5,
+        w: 6+Math.random()*6,
+        h: 8+Math.random()*10,
+        color: colors[Math.floor(Math.random()*colors.length)],
+        vy: 2.5+Math.random()*3.5,
+        vx: (Math.random()-0.5)*2.5,
+        rot: Math.random()*Math.PI*2,
+        vr: (Math.random()-0.5)*0.35
+      });
+    }
+    var start = Date.now();
+    var maxDuration = 3200;
+
+    // setInterval rather than requestAnimationFrame: rAF is paused by the
+    // browser whenever the page isn't the visible/composited tab, which
+    // would silently freeze the confetti (or skip it entirely) any time
+    // the window loses focus for a moment. A fixed-rate timer keeps
+    // advancing regardless, so the effect reliably finishes on its own.
+    var intervalId = setInterval(function(){
+      var elapsed = Date.now() - start;
+      ctx.clearRect(0,0,vw,vh);
+      var anyOnScreen = false;
+      pieces.forEach(function(p){
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.035;
+        p.rot += p.vr;
+        if (p.y < vh + 30) anyOnScreen = true;
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(-p.w/2, -p.h/2, p.w, p.h);
+        ctx.restore();
+      });
+      if (!anyOnScreen || elapsed >= maxDuration){
+        clearInterval(intervalId);
+        ctx.clearRect(0,0,vw,vh);
+        canvas.hidden = true;
+      }
+    }, 16);
+  }
+
   // ---------- wiring ----------
   function init(){
     var today = new Date();
@@ -1229,7 +1352,7 @@
       saveLayout();
       renderEditor();
     });
-    $("randomizeBtn").addEventListener("click", function(){ randomize(false); });
+    $("randomizeBtn").addEventListener("click", startCountdownThenRandomize);
     var onClassChange = function(){
       if (db) loadClassFromDb(currentClassName()); else loadLocalFallback();
     };
