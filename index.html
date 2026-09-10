@@ -247,6 +247,41 @@
   .group-ctrl .icon-btn:hover{color:var(--danger);}
   .group-ctrl .icon-btn.move:hover{color:var(--accent);}
 
+  /* --- timetable import --- */
+  #timetablePanel{margin-bottom:26px;}
+  #timetablePanel[hidden]{display:none;}
+  .editor-head p{max-width:none;}
+  .tt-actions{display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:12px;}
+  .tt-actions label.btn{display:inline-block;}
+  .tt-status{
+    font-family:'JetBrains Mono',monospace; font-size:12px;
+    color:var(--ink-soft); margin-bottom:12px;
+  }
+  .tt-table{
+    border-collapse:collapse; font-family:'JetBrains Mono',monospace; font-size:12px;
+    margin-bottom:18px;
+  }
+  .tt-table th, .tt-table td{
+    border:1px solid var(--border-soft); padding:5px 10px; text-align:center;
+  }
+  .tt-table th{background:var(--surface-2); color:var(--ink-soft);}
+  .tt-table td{color:var(--ink);}
+  .bell-title{margin:6px 0 2px; font-size:15px; color:var(--accent-strong);}
+  .bell-hint{margin:0 0 12px; font-size:12px; color:var(--ink-soft);}
+  .bell-row{
+    display:flex; align-items:center; gap:8px; margin-bottom:8px;
+    font-size:13px;
+  }
+  .bell-row .bell-p{
+    font-family:'JetBrains Mono',monospace; font-weight:700;
+    color:var(--accent-strong); width:44px;
+  }
+  .bell-row input[type="time"]{
+    font-family:'JetBrains Mono',monospace; font-size:13px;
+    padding:5px 8px; border:1px solid var(--border); border-radius:6px;
+    background:var(--surface-2); color:var(--ink);
+  }
+
   /* --- bulk class-size setup --- */
   .bulk-grade{margin-bottom:16px;}
   .bulk-grade:last-child{margin-bottom:0;}
@@ -475,6 +510,7 @@
     box-shadow:0 6px 20px var(--shadow);
     z-index:60; opacity:0; pointer-events:none; transition:opacity .25s ease, transform .25s ease;
   }
+  :root[data-theme="dark"] .toast, @media (prefers-color-scheme:dark){ .toast{} }
   .toast.show{opacity:1; transform:translateX(-50%) translateY(-4px);}
 
   /* --- randomize countdown + confetti --- */
@@ -558,6 +594,7 @@
       <input type="number" id="countInput" min="1" max="80" value="28">
     </div>
     <div class="actions-row">
+      <button class="btn" id="toggleTimetableBtn" type="button">시간표 불러오기</button>
       <button class="btn" id="toggleBulkBtn" type="button">반별 인원수 설정</button>
       <button class="btn" id="toggleEditorBtn" type="button">좌석 배치 편집</button>
       <button class="btn btn-primary" id="randomizeBtn" type="button">🎲 무작위 배정</button>
@@ -565,6 +602,35 @@
   </div>
 
   <div class="error-banner" id="errorBanner"></div>
+
+  <section id="timetablePanel" hidden>
+    <div class="card">
+      <div class="editor-head">
+        <div>
+          <h2>시간표 불러오기 (CSV)</h2>
+          <p>시간표 CSV를 올리면 오늘 요일과 지금 시각을 따져 학년·반·교시가 자동으로 채워집니다.</p>
+          <p>첫 번째 열은 교시(1~7), 그다음 다섯 개 열은 월·화·수·목·금 순서입니다.</p>
+          <p>각 칸에는 학년과 반을 적습니다 — 예: 1학년 3반이면 <b>1-3</b>. 수업이 없는 칸은 비워 둡니다.</p>
+          <p>맨 윗줄(제목 줄)은 있어도 되고 없어도 됩니다.</p>
+        </div>
+      </div>
+      <div class="tt-actions">
+        <label class="btn btn-small" for="timetableFile">CSV 파일 선택</label>
+        <input type="file" id="timetableFile" accept=".csv,text/csv" hidden>
+        <button class="btn btn-small" id="downloadSampleBtn" type="button">예시 CSV 내려받기</button>
+        <button class="btn btn-small btn-primary" id="applyTimetableBtn" type="button">🕐 지금 시간표 적용</button>
+      </div>
+      <div class="tt-status" id="timetableStatus">저장된 시간표: 없음</div>
+      <div id="timetablePreview"></div>
+
+      <h3 class="bell-title">교시 시각</h3>
+      <p class="bell-hint">지금이 몇 교시인지 판단하는 기준입니다. 학교 종소리 시간표에 맞게 고칠 수 있어요.</p>
+      <div id="bellEditor"></div>
+      <div style="margin-top:12px; text-align:right;">
+        <button class="btn btn-small btn-primary" id="bellSaveBtn" type="button">교시 시각 저장</button>
+      </div>
+    </div>
+  </section>
 
   <section id="bulkPanel" hidden>
     <div class="card">
@@ -1228,6 +1294,206 @@
     showToast("저장되었습니다: "+filename);
   }
 
+  // ---------- timetable import + auto-set ----------
+  // 사용자가 알려준 종소리 시간표: 9시부터 45분 수업, 쉬는시간 10분,
+  // 12:30부터 점심, 5교시 13:30 시작, 7교시까지.
+  var DEFAULT_BELL = [
+    {p:1, s:"09:00", e:"09:45"},
+    {p:2, s:"09:55", e:"10:40"},
+    {p:3, s:"10:50", e:"11:35"},
+    {p:4, s:"11:45", e:"12:30"},
+    {p:5, s:"13:30", e:"14:15"},
+    {p:6, s:"14:25", e:"15:10"},
+    {p:7, s:"15:20", e:"16:05"}
+  ];
+  var WEEKDAY_KEYS = [null,"mon","tue","wed","thu","fri",null]; // Date.getDay(): 0=일 … 6=토
+  var WEEKDAY_KR = { mon:"월", tue:"화", wed:"수", thu:"목", fri:"금" };
+  var TT_DAYS = ["mon","tue","wed","thu","fri"];
+
+  function toMin(hhmm){
+    var m = /^(\d{1,2}):(\d{2})$/.exec((hhmm||"").trim());
+    return m ? (+m[1])*60 + (+m[2]) : null;
+  }
+
+  function loadBell(){
+    try{ var r = localStorage.getItem("seat_bell_v1"); return r ? JSON.parse(r) : null; }
+    catch(e){ return null; }
+  }
+  function bellMinutes(){
+    var raw = loadBell() || DEFAULT_BELL;
+    return raw.map(function(x){ return { p:x.p, sMin:toMin(x.s), eMin:toMin(x.e) }; })
+      .filter(function(x){ return x.sMin != null && x.eMin != null; })
+      .sort(function(a,b){ return a.sMin - b.sMin; });
+  }
+  function currentPeriodFromClock(){
+    var bell = bellMinutes();
+    if (!bell.length) return 1;
+    var now = new Date();
+    var nowMin = now.getHours()*60 + now.getMinutes();
+    for (var i=0;i<bell.length;i++){
+      if (nowMin < bell[i].eMin) return bell[i].p;
+    }
+    return bell[bell.length-1].p; // 마지막 교시가 끝난 뒤
+  }
+  function weekdayKey(){ return WEEKDAY_KEYS[new Date().getDay()]; }
+
+  function loadTimetable(){
+    try{ var r = localStorage.getItem("seat_timetable_v1"); return r ? JSON.parse(r) : null; }
+    catch(e){ return null; }
+  }
+  function saveTimetable(tt){
+    try{ localStorage.setItem("seat_timetable_v1", JSON.stringify(tt)); }catch(e){}
+  }
+
+  // "1-3", "1학년 3반", "1학년3반" 등에서 학년·반 숫자를 뽑는다.
+  // (파일 인코딩이 CP949여도 숫자는 ASCII라 그대로 읽힌다)
+  function cellToClass(cell){
+    var s = (cell == null ? "" : String(cell)).trim();
+    if (!s || s === "-" || s === "x" || s === "X" || s === "없음") return null;
+    var nums = s.match(/\d+/g);
+    var g, c;
+    if (nums && nums.length >= 2){ g = +nums[0]; c = +nums[1]; }
+    else if (nums && nums.length === 1 && nums[0].length === 2){ g = +nums[0][0]; c = +nums[0][1]; }
+    else return null;
+    if (g >= 1 && g <= 3 && c >= 1 && c <= 9) return { grade:String(g), cls:String(c) };
+    return null;
+  }
+
+  function parseTimetableCsv(text){
+    var lines = String(text).replace(/\r\n?/g, "\n").split("\n");
+    var tt = { mon:{}, tue:{}, wed:{}, thu:{}, fri:{} };
+    var rows = 0;
+    lines.forEach(function(line){
+      if (line.trim() === "") return;
+      var cells = line.split(",");
+      var p = parseInt((cells[0]||"").trim(), 10);
+      if (!(p >= 1 && p <= 7)) return; // 제목 줄이나 빈 줄은 건너뛴다
+      for (var d=0; d<5; d++){
+        var cc = cellToClass(cells[d+1]);
+        if (cc) tt[TT_DAYS[d]][p] = cc;
+      }
+      rows++;
+    });
+    return { tt: tt, periodRows: rows };
+  }
+
+  function renderTimetableStatus(){
+    var tt = loadTimetable();
+    var el = $("timetableStatus");
+    if (!el) return;
+    if (!tt){ el.textContent = "저장된 시간표: 없음"; return; }
+    var n = 0;
+    TT_DAYS.forEach(function(d){ n += Object.keys(tt[d]||{}).length; });
+    el.textContent = "저장된 시간표: 수업 " + n + "칸 등록됨";
+  }
+
+  function renderTimetablePreview(){
+    var wrap = $("timetablePreview");
+    if (!wrap) return;
+    var tt = loadTimetable();
+    if (!tt){ wrap.innerHTML = ""; return; }
+    var html = '<table class="tt-table"><thead><tr><th>교시</th>';
+    TT_DAYS.forEach(function(d){ html += '<th>' + WEEKDAY_KR[d] + '</th>'; });
+    html += '</tr></thead><tbody>';
+    for (var p=1;p<=7;p++){
+      html += '<tr><td>' + p + '</td>';
+      TT_DAYS.forEach(function(d){
+        var s = tt[d] && tt[d][p];
+        html += '<td>' + (s ? s.grade + '-' + s.cls : '·') + '</td>';
+      });
+      html += '</tr>';
+    }
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
+  }
+
+  function renderBellEditor(){
+    var wrap = $("bellEditor");
+    if (!wrap) return;
+    var raw = loadBell() || DEFAULT_BELL;
+    var byP = {}; raw.forEach(function(x){ byP[x.p] = x; });
+    wrap.innerHTML = "";
+    for (var p=1;p<=7;p++){
+      var b = byP[p] || {};
+      var row = document.createElement("div");
+      row.className = "bell-row";
+      row.innerHTML =
+        '<span class="bell-p">' + p + '교시</span>' +
+        '<input type="time" id="bell-s-' + p + '" value="' + (b.s || "") + '"> ~ ' +
+        '<input type="time" id="bell-e-' + p + '" value="' + (b.e || "") + '">';
+      wrap.appendChild(row);
+    }
+  }
+
+  function saveBellFromEditor(){
+    var arr = [];
+    for (var p=1;p<=7;p++){
+      arr.push({ p:p, s: $("bell-s-"+p).value, e: $("bell-e-"+p).value });
+    }
+    try{ localStorage.setItem("seat_bell_v1", JSON.stringify(arr)); }catch(e){}
+    showToast("교시 시각을 저장했습니다");
+  }
+
+  function downloadSampleCsv(){
+    var csv = "교시,월,화,수,목,금\n" +
+      "1,1-1,,2-3,,1-1\n" +
+      "2,,1-2,,2-3,\n" +
+      "3,3-4,,1-2,,3-4\n" +
+      "4,,3-4,,1-2,\n" +
+      "5,2-3,,3-4,,2-3\n" +
+      "6,,2-3,,3-4,\n" +
+      "7,1-1,,,,\n";
+    downloadBlobLocally(new Blob(["﻿" + csv], { type:"text/csv;charset=utf-8" }), "시간표_예시.csv");
+  }
+
+  function handleTimetableFile(e){
+    var f = e.target.files && e.target.files[0];
+    if (!f) return;
+    var reader = new FileReader();
+    reader.onload = function(){
+      try{
+        var parsed = parseTimetableCsv(String(reader.result));
+        if (parsed.periodRows === 0){
+          showToast("시간표를 읽지 못했습니다. 첫 열이 교시 번호(1~7)인지 확인해 주세요");
+          return;
+        }
+        saveTimetable(parsed.tt);
+        renderTimetableStatus();
+        renderTimetablePreview();
+        applyTimetableNow(false);
+      }catch(err){
+        console.error(err);
+        showToast("시간표 처리 중 오류: " + err.message);
+      }
+    };
+    reader.readAsText(f);
+    e.target.value = ""; // 같은 파일 다시 올릴 수 있게
+  }
+
+  // 저장된 시간표 + 지금 시각으로 학년/반/교시를 세팅한다.
+  // silent=true: 값만 조용히 채운다(페이지 로드 시). 뒤이어 initCapabilities 가
+  //              그 반의 정보를 불러온다.
+  // silent=false: 값을 채우고 해당 반 정보 로드 + 안내 토스트까지.
+  function applyTimetableNow(silent){
+    var tt = loadTimetable();
+    if (!tt){ if (!silent) showToast("먼저 시간표 CSV를 불러와 주세요"); return; }
+    var wk = weekdayKey();
+    if (!wk){ if (!silent) showToast("주말에는 시간표 자동 설정을 건너뜁니다"); return; }
+    var p = currentPeriodFromClock();
+    $("periodInput").value = String(p);
+    var slot = tt[wk] && tt[wk][p];
+    if (slot){
+      $("gradeSelect").value = slot.grade;
+      $("classSelect").value = slot.cls;
+      if (!silent){
+        if (db) loadClassFromDb(currentClassName()); else loadLocalFallback();
+        showToast(WEEKDAY_KR[wk] + "요일 " + p + "교시 → " + slot.grade + "학년 " + slot.cls + "반 적용");
+      }
+    } else if (!silent){
+      showToast(p + "교시에는 등록된 수업이 없어요 (교시만 " + p + "교시로 설정했어요)");
+    }
+  }
+
   // ---------- randomize countdown + confetti ----------
   function startCountdownThenRandomize(){
     var btn = $("randomizeBtn");
@@ -1324,6 +1590,23 @@
     var today = new Date();
     var pad2 = function(n){ return n < 10 ? "0"+n : ""+n; };
     $("dateInput").value = today.getFullYear()+"-"+pad2(today.getMonth()+1)+"-"+pad2(today.getDate());
+
+    renderBellEditor();
+    renderTimetableStatus();
+    renderTimetablePreview();
+    $("toggleTimetableBtn").addEventListener("click", function(){
+      var panel = $("timetablePanel");
+      panel.hidden = !panel.hidden;
+      this.textContent = panel.hidden ? "시간표 불러오기" : "시간표 불러오기 닫기";
+    });
+    $("timetableFile").addEventListener("change", handleTimetableFile);
+    $("downloadSampleBtn").addEventListener("click", downloadSampleCsv);
+    $("bellSaveBtn").addEventListener("click", saveBellFromEditor);
+    $("applyTimetableBtn").addEventListener("click", function(){ applyTimetableNow(false); });
+
+    // 저장된 시간표가 있으면 오늘 요일·현재 시각으로 학년/반/교시를 미리 채운다
+    // (아래 initCapabilities 가 그 반의 인원수·고정석을 이어서 불러온다).
+    if (loadTimetable()) applyTimetableNow(true);
 
     renderBulkGrid();
     $("toggleBulkBtn").addEventListener("click", function(){
